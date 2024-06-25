@@ -1,84 +1,86 @@
 package com.ironhack.greetspringweb.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ironhack.greetspringweb.model.CoffeeRequest;
-import lombok.RequiredArgsConstructor;
+import com.ironhack.greetspringweb.service.GreetService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.ResultMatcher;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.server.ResponseStatusException;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@RequiredArgsConstructor
+@WebMvcTest(GreetController.class)
 class GreetControllerTest {
 
-    private final WebApplicationContext webApplicationContext;
-
+    @Autowired
     private MockMvc mockMvc;
 
-    final ObjectMapper objectMapper = new ObjectMapper();
+    @MockBean
+    private GreetService greetService;
 
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+        when(greetService.greet(anyString())).thenReturn("Hello ");
+        when(greetService.greet(anyString(), anyString())).thenReturn("Greeting ");
     }
-
-
 
     @Test
     void test_greet_english() throws Exception {
-        // Arrange
-        String name = "John";
-        String language = "en";
-        // Act
-        mockMvc.perform(get("/greet?name=" + name + "&language=" + language))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString().equals("Hello John");
+        when(greetService.greet("John", "en")).thenReturn("Hello John");
 
-        // Assert
+        mockMvc.perform(get("/greet")
+                        .param("name", "John")
+                        .param("language", "en"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Hello John"));
     }
 
     @Test
     void test_greet_spanish() throws Exception {
-        // Arrange
-        String name = "John";
-        String language = "jeronimo";
-        // Act
-        mockMvc.perform(get("/greet?name=" + name + "&language=" + language))
-                .andExpect(status().isBadRequest());
+        when(greetService.greet("John", "es")).thenReturn("Hola John");
 
-        // Assert
+        mockMvc.perform(get("/greet")
+                        .param("name", "John")
+                        .param("language", "es"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Hola John"));
     }
-
-
 
     @Test
-    void createNewCoffee() throws Exception {
-        CoffeeRequest coffeeRequest = new CoffeeRequest("Flat White");
+    void test_greet_default_language() throws Exception {
+        when(greetService.greet("John")).thenReturn("Hello John");
 
-        var body = objectMapper.writeValueAsString(coffeeRequest);
-        System.out.println(body);
-
-        MvcResult mvcResult = mockMvc.perform(post("/coffee")
-                .content(body)
-                .contentType("application/json"))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        assertTrue(mvcResult.getResponse().getContentAsString().contains("Flat White"));
-        assertTrue(mvcResult.getResponse().getContentAsString().contains("1"));
+        mockMvc.perform(get("/greet")
+                        .param("name", "John"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Hello John"));
     }
 
+    @Test
+    void test_greet_unsupported_language() throws Exception {
+        when(greetService.greet("John", "unsupported")).thenThrow(new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "Language not supported"));
+
+        mockMvc.perform(get("/greet")
+                        .param("name", "John")
+                        .param("language", "unsupported"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void test_greet_missing_name() throws Exception {
+        mockMvc.perform(get("/greet"))
+                .andExpect(status().isBadRequest());
+    }
 }

@@ -24,7 +24,6 @@ public class CoffeeController {
     }
 
     @GetMapping
-
     public List<Coffee> returnAllCoffees() {
         return coffeeService.returnAllCoffees();
     }
